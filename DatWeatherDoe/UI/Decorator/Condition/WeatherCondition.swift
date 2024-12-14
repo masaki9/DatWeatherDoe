@@ -6,27 +6,68 @@
 //  Copyright © 2016 Inder Dhir. All rights reserved.
 //
 
-import Foundation
 import AppKit
+import Foundation
 
 enum WeatherCondition {
-    case cloudy
-    
-    case partlyCloudy, partlyCloudyNight
+    case cloudy, partlyCloudy, partlyCloudyNight
     case sunny, clearNight
-    
-    case smoky(condition: SmokyWeatherCondition)
-    
     case snow
-    
-    case heavyRain
-    case freezingRain
-    case lightRain
-    case partlyCloudyRain
-    
+    case heavyRain, freezingRain, lightRain, partlyCloudyRain
     case thunderstorm
-    
-    static func getFallback(isNight: Bool) -> WeatherCondition {
-        isNight ? .clearNight : .sunny
+    case mist, fog
+
+    static func getFallback(isDay: Bool) -> WeatherCondition {
+        isDay ? .sunny : .clearNight
+    }
+
+    var symbolName: String {
+        switch self {
+        case .cloudy:
+            "cloud"
+        case .partlyCloudy:
+            "cloud.sun"
+        case .partlyCloudyNight:
+            "cloud.moon"
+        case .sunny:
+            "sun.max"
+        case .clearNight:
+            "moon"
+        case .snow:
+            "cloud.snow"
+        case .lightRain, .heavyRain, .freezingRain:
+            "cloud.rain"
+        case .partlyCloudyRain:
+            "cloud.sun.rain"
+        case .thunderstorm:
+            "cloud.bolt.rain"
+        case .mist, .fog:
+            "cloud.fog"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .cloudy:
+            "Cloudy"
+        case .partlyCloudy:
+            "Partly Cloudy"
+        case .partlyCloudyNight:
+            "Partly Cloudy"
+        case .sunny:
+            "Sunny"
+        case .clearNight:
+            "Clear"
+        case .snow:
+            "Snow"
+        case .lightRain, .heavyRain, .freezingRain:
+            "Rainy"
+        case .partlyCloudyRain:
+            "Partly cloudy with rain"
+        case .thunderstorm:
+            "Thunderstorm"
+        case .mist, .fog:
+            "Cloudy with Fog"
+        }
     }
 }

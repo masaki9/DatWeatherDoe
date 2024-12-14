@@ -6,153 +6,175 @@
 //  Copyright © 2022 Inder Dhir. All rights reserved.
 //
 
-import CoreLocation
 import Foundation
+import OSLog
 
-final class WeatherViewModel: WeatherViewModelType {
-
-    weak var delegate: WeatherViewModelDelegate?
+@MainActor
+final class WeatherViewModel: WeatherViewModelType, ObservableObject {
+    private let locationFetcher: SystemLocationFetcherType
+    private var weatherFactory: WeatherRepositoryFactoryType
     private let configManager: ConfigManagerType
-    private let errorLabels = ErrorLabels()
-    private let weatherTimerSerialQueue = DispatchQueue(label: "Weather Timer Serial Queue")
-    private let forecaster = WeatherForecaster()
-    private let logger: DatWeatherDoeLoggerType
-    private var weatherRepository: WeatherRepository!
-    private var weatherTimer: Timer?
-    private var weatherResultParser: WeatherResultParser?
-    private lazy var locationFetcher: SystemLocationFetcher = {
-        let locationFetcher = SystemLocationFetcher(logger: logger)
-        locationFetcher.delegate = self
-        return locationFetcher
-    }()
+    private var dataFormatter: WeatherDataFormatterType!
+    private let logger: Logger
+    private var reachability: NetworkReachability!
 
-    init(appId: String, configManager: ConfigManagerType, logger: DatWeatherDoeLoggerType) {
+    private let forecaster = WeatherForecaster()
+    private var weatherTimerTask: Task<Void, Never>?
+
+    @Published var menuOptionData: MenuOptionData?
+    @Published var weatherResult: Result<WeatherData, Error>?
+
+    init(
+        locationFetcher: SystemLocationFetcher,
+        weatherFactory: WeatherRepositoryFactoryType,
+        configManager: ConfigManagerType,
+        logger: Logger
+    ) {
+        self.locationFetcher = locationFetcher
         self.configManager = configManager
+        self.weatherFactory = weatherFactory
         self.logger = logger
-        weatherRepository = WeatherRepository(appId: appId, logger: logger)
+
+        setupReachability()
     }
 
-    func getUpdatedWeather() {
-        weatherTimerSerialQueue.sync {
-            weatherTimer?.invalidate()
-            weatherTimer = Timer.scheduledTimer(
-                withTimeInterval: configManager.refreshInterval,
-                repeats: true,
-                block: { [weak self] _ in self?.getWeatherWithSelectedSource() })
-            weatherTimer?.fire()
+    deinit {
+        Task { [weatherTimerTask] in
+            weatherTimerTask?.cancel()
         }
     }
 
-    func updateCityWith(cityId: Int) {
-        forecaster.updateCityWith(cityId: cityId)
+    func setup(with formatter: WeatherDataFormatter) {
+        dataFormatter = formatter
+    }
+
+    func getUpdatedWeatherAfterRefresh() {
+        weatherTimerTask?.cancel()
+        weatherTimerTask = Task { [weak self] in
+            guard let self else { return }
+
+            while !Task.isCancelled {
+                await self.getWeatherWithSelectedSource()
+                try? await Task.sleep(for: .seconds(configManager.refreshInterval))
+            }
+        }
     }
 
     func seeForecastForCurrentCity() {
         forecaster.seeForecastForCity()
     }
 
-    private func getWeatherWithSelectedSource() {
-        let weatherSource = WeatherSource(rawValue: configManager.weatherSource)!
-        switch weatherSource {
-        case .location:
-            getWeatherAfterUpdatingLocation()
-        case .zipCode:
-            getWeatherViaZipCode()
-        case .latLong:
-            getWeatherViaLocationCoordinates()
-        }
-    }
-
-    private func getWeatherAfterUpdatingLocation() {
-        locationFetcher.startUpdatingLocation()
-    }
-
-    private func getWeatherViaZipCode() {
-        guard let zipCode = configManager.weatherSourceText else {
-            delegate?.didFailToUpdateWeatherData(errorLabels.zipCodeErrorString)
-            return
-        }
-
-        weatherRepository.getWeatherViaZipCode(
-            zipCode,
-            options: buildWeatherDataOptions(),
-            completion: { [weak self] result in
-                guard let `self` = self else { return }
-
-                ZipCodeWeatherResultParser(
-                    weatherDataResult: result,
-                    delegate: self.delegate,
-                    errorLabels: self.errorLabels
-                ).parse()
+    private func setupReachability() {
+        reachability = NetworkReachability(
+            logger: logger,
+            onBecomingReachable: { [weak self] in
+                self?.getUpdatedWeatherAfterRefresh()
             }
         )
     }
 
-    private func getWeatherViaLocationCoordinates() {
-        guard let latLong = configManager.weatherSourceText else {
-            delegate?.didFailToUpdateWeatherData(errorLabels.latLongErrorString)
-            return
+    private func getWeatherWithSelectedSource() async {
+        let weatherSource = WeatherSource(rawValue: configManager.weatherSource) ?? .location
+
+        do {
+            let weatherData = switch weatherSource {
+            case .location:
+                try await getWeatherAfterUpdatingLocation()
+            case .latLong:
+                try await getWeatherViaLocationCoordinates()
+            }
+            updateWeatherData(weatherData)
+        } catch {
+            updateWeatherData(error)
+        }
+    }
+
+    private func getWeatherAfterUpdatingLocation() async throws -> WeatherData {
+        let locationFetcher = locationFetcher
+        let locationTask = Task {
+            let location = try await locationFetcher.getLocation()
+            return location
         }
 
-        weatherRepository.getWeatherViaLatLong(
-            latLong,
-            options: buildWeatherDataOptions(),
-            completion: { [weak self] result in
-                guard let `self` = self else { return }
-
-                self.weatherResultParser = LocationCoordinatesWeatherResultParser(
-                    weatherDataResult: result,
-                    delegate: self.delegate,
-                    errorLabels: self.errorLabels
-                )
-                self.weatherResultParser?.parse()
-            }
+        let location = try await locationTask.value
+        return try await getWeather(
+            repository: weatherFactory.create(location: location),
+            unit: configManager.parsedMeasurementUnit
         )
     }
 
-    private func buildWeatherDataOptions() -> WeatherDataBuilder.Options {
+    private func getWeatherViaLocationCoordinates() async throws -> WeatherData {
+        let latLong = configManager.weatherSourceText
+        guard !latLong.isEmpty else {
+            throw WeatherError.latLongIncorrect
+        }
+
+        return try await getWeather(
+            repository: weatherFactory.create(latLong: latLong),
+            unit: configManager.parsedMeasurementUnit
+        )
+    }
+
+    private func buildWeatherDataOptions(for unit: MeasurementUnit) -> WeatherDataBuilder.Options {
         .init(
+            unit: unit,
             showWeatherIcon: configManager.isShowingWeatherIcon,
-            textOptions: buildWeatherTextOptions()
+            textOptions: buildWeatherTextOptions(for: unit)
         )
     }
 
-    private func buildWeatherTextOptions() -> WeatherTextBuilder.Options {
-        .init(
+    private func buildWeatherTextOptions(for unit: MeasurementUnit) -> WeatherTextBuilder.Options {
+        let conditionPosition = WeatherConditionPosition(rawValue: configManager.weatherConditionPosition)
+            ?? .beforeTemperature
+        return .init(
             isWeatherConditionAsTextEnabled: configManager.isWeatherConditionAsTextEnabled,
+            conditionPosition: conditionPosition,
+            valueSeparator: configManager.valueSeparator,
             temperatureOptions: .init(
-                unit: TemperatureUnit(rawValue: configManager.temperatureUnit) ?? .fahrenheit,
-                isRoundingOff: configManager.isRoundingOffData
+                unit: unit.temperatureUnit,
+                isRoundingOff: configManager.isRoundingOffData,
+                isUnitLetterOff: configManager.isUnitLetterOff,
+                isUnitSymbolOff: configManager.isUnitSymbolOff
             ),
-            isShowingHumidity: configManager.isShowingHumidity
+            isShowingHumidity: configManager.isShowingHumidity,
+            isShowingUVIndex: configManager.isShowingUVIndex
         )
     }
 
-    private func getWeatherViaLocation(_ location: CLLocationCoordinate2D) {
-        weatherRepository.getWeatherViaLocation(
-            location,
-            options: buildWeatherDataOptions(),
-            completion: { [weak self] result in
-                guard let `self` = self else { return }
+    private func getWeather(repository: WeatherRepositoryType, unit: MeasurementUnit) async throws -> WeatherData {
+        let repository = repository
 
-                self.weatherResultParser = SystemLocationWeatherResultParser(
-                    weatherDataResult: result,
-                    delegate: self.delegate,
-                    errorLabels: self.errorLabels
-                )
-                self.weatherResultParser?.parse()
-            })
-    }
-}
+        let responseTask = Task {
+            let response = try await repository.getWeather()
+            return response
+        }
 
-// MARK: SystemLocationFetcherDelegate
-
-extension WeatherViewModel: SystemLocationFetcherDelegate {
-    func didUpdateLocation(_ location: CLLocationCoordinate2D, isCachedLocation: Bool) {
-        getWeatherViaLocation(location)
+        do {
+            let response = try await responseTask.value
+            let weatherData = WeatherDataBuilder(
+                response: response,
+                options: buildWeatherDataOptions(for: unit),
+                logger: logger
+            ).build()
+            return weatherData
+        } catch {
+            throw WeatherError.networkError
+        }
     }
 
-    func didFailLocationUpdate() {
-        delegate?.didFailToUpdateWeatherData(errorLabels.locationErrorString)
+    private func updateWeatherData(_ data: WeatherData) {
+        menuOptionData = MenuOptionData(
+            locationText: dataFormatter.getLocation(for: data),
+            weatherText: dataFormatter.getWeatherText(for: data),
+            sunriseSunsetText: dataFormatter.getSunriseSunset(for: data),
+            tempHumidityWindText: dataFormatter.getWindSpeedItem(for: data),
+            uvIndexAndAirQualityText: dataFormatter.getUVIndexAndAirQuality(for: data)
+        )
+        weatherResult = .success(data)
+    }
+
+    private func updateWeatherData(_ error: Error) {
+        menuOptionData = nil
+        weatherResult = .failure(error)
     }
 }

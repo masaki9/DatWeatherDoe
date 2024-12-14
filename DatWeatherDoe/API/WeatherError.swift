@@ -8,13 +8,22 @@
 
 import Foundation
 
-enum WeatherError: Error {
+enum WeatherError: LocalizedError {
     case unableToConstructUrl
-    case zipCodeIncorrect
-    case latLongIncorrect
     case locationError
+    case latLongIncorrect
     case networkError
-    case unableToParseWeatherResponse
-    case unableToParseTemperatureUnit
-    case other
+
+    var errorDescription: String? {
+        switch self {
+        case .unableToConstructUrl:
+            return "Unable to construct URL"
+        case .locationError:
+            return NSLocalizedString("❗️Location", comment: "Location error when fetching weather")
+        case .latLongIncorrect:
+            return NSLocalizedString("❗️Lat/Long", comment: "Lat/Long error when fetching weather")
+        case .networkError:
+            return "🖧"
+        }
+    }
 }

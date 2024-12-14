@@ -9,18 +9,15 @@
 import Foundation
 
 enum RefreshInterval: TimeInterval, CaseIterable, Identifiable {
-    case oneMinute = 60
     case fiveMinutes = 300
     case fifteenMinutes = 900
     case thirtyMinutes = 1800
     case sixtyMinutes = 3600
-    
+
     var id: Self { self }
 
     var title: String {
         switch self {
-        case .oneMinute:
-            return NSLocalizedString("1 min", comment: "1 min refresh interval")
         case .fiveMinutes:
             return NSLocalizedString("5 min", comment: "5 min refresh interval")
         case .fifteenMinutes:

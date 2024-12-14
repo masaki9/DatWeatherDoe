@@ -6,58 +6,94 @@
 //  Copyright © 2022 Inder Dhir. All rights reserved.
 //
 
-final class WeatherTextBuilder {
-    
+import OSLog
+
+protocol WeatherTextBuilderType {
+    func build() -> String
+}
+
+final class WeatherTextBuilder: WeatherTextBuilderType {
     struct Options {
         let isWeatherConditionAsTextEnabled: Bool
+        let conditionPosition: WeatherConditionPosition
+        let valueSeparator: String
         let temperatureOptions: TemperatureTextBuilder.Options
         let isShowingHumidity: Bool
+        let isShowingUVIndex: Bool
     }
-    
+
     private let response: WeatherAPIResponse
     private let options: Options
-    private let logger: DatWeatherDoeLoggerType
-    
+    private let logger: Logger
+
     init(
         response: WeatherAPIResponse,
         options: Options,
-        logger: DatWeatherDoeLoggerType
+        logger: Logger
     ) {
         self.response = response
         self.options = options
         self.logger = logger
     }
-    
+
     func build() -> String {
-        let finalString = buildWeatherConditionAsText() |>
-        appendTemperatureAsText |>
-        appendHumidityText
-        
+        let finalString = appendTemperatureAsText() |>
+            appendUVIndex |>
+            appendHumidityText |>
+            buildWeatherConditionAsText
         return finalString
     }
-    
-    private func buildWeatherConditionAsText() -> String? {
-        guard options.isWeatherConditionAsTextEnabled else { return nil }
-        
-        let weatherCondition = WeatherConditionBuilder(response: response).build()
-        return WeatherConditionTextMapper().map(weatherCondition)
-    }
-    
-    private func appendTemperatureAsText(initial: String?) -> String {
+
+    private func appendTemperatureAsText() -> String {
         TemperatureTextBuilder(
-            initial: initial,
             response: response,
-            options: options.temperatureOptions
-        ).build()
+            options: options.temperatureOptions,
+            temperatureCreator: TemperatureWithDegreesCreator()
+        ).build() ?? ""
     }
-    
+
+    private func appendUVIndex(initial: String) -> String {
+        guard options.isShowingUVIndex else { return initial }
+
+        return UVIndexTextBuilder(
+            initial: initial,
+            separator: options.valueSeparator
+        ).build(from: response)
+    }
+
     private func appendHumidityText(initial: String) -> String {
         guard options.isShowingHumidity else { return initial }
-        
+
         return HumidityTextBuilder(
             initial: initial,
+            valueSeparator: options.valueSeparator,
             humidity: response.humidity,
             logger: logger
         ).build()
     }
+
+    private func buildWeatherConditionAsText(initial: String) -> String {
+        guard options.isWeatherConditionAsTextEnabled else { return initial }
+
+        let weatherCondition = WeatherConditionBuilder(response: response).build()
+        let weatherConditionText = WeatherConditionTextMapper().map(weatherCondition)
+
+        let combinedString = options.conditionPosition == .beforeTemperature ?
+            [weatherConditionText, initial] :
+            [initial, weatherConditionText.lowercased()]
+
+        return combinedString
+            .compactMap { $0 }
+            .joined(separator: ", ")
+    }
+}
+
+precedencegroup ForwardPipe {
+    associativity: left
+}
+
+infix operator |>: ForwardPipe
+
+private func |> <T, U>(value: T, function: (T) -> U) -> U {
+    function(value)
 }

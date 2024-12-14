@@ -8,97 +8,100 @@
 
 import Combine
 import Foundation
-import LaunchAtLogin
 
 final class ConfigureViewModel: ObservableObject {
-    
-    @Published var temperateUnit: TemperatureUnit {
-        didSet { configManager.temperatureUnit = temperateUnit.rawValue }
+    @Published var measurementUnit: MeasurementUnit {
+        didSet { configManager.measurementUnit = measurementUnit.rawValue }
     }
-    
+
     @Published var weatherSource: WeatherSource {
-        didSet {
-            configManager.weatherSource = weatherSource.rawValue
-            updateWeatherSource()
-        }
+        didSet { configManager.weatherSource = weatherSource.rawValue }
     }
-    @Published private(set) var weatherSourceTextHint = ""
-    @Published private(set) var weatherSourceTextFieldDisabled = false
-    @Published private(set) var weatherSourcePlaceholder = ""
+
     @Published var weatherSourceText = "" {
         didSet { configManager.weatherSourceText = weatherSourceText }
     }
-    
+
     @Published var refreshInterval: RefreshInterval {
         didSet { configManager.refreshInterval = refreshInterval.rawValue }
     }
-    
+
     @Published var isShowingWeatherIcon: Bool {
         didSet { configManager.isShowingWeatherIcon = isShowingWeatherIcon }
     }
-    
+
     @Published var isShowingHumidity: Bool {
         didSet { configManager.isShowingHumidity = isShowingHumidity }
     }
-    
+
+    @Published var isShowingUVIndex: Bool {
+        didSet { configManager.isShowingUVIndex = isShowingUVIndex }
+    }
+
     @Published var isRoundingOffData: Bool {
         didSet { configManager.isRoundingOffData = isRoundingOffData }
     }
-    
+
+    @Published var isUnitLetterOff: Bool {
+        didSet { configManager.isUnitLetterOff = isUnitLetterOff }
+    }
+
+    @Published var isUnitSymbolOff: Bool {
+        didSet { configManager.isUnitSymbolOff = isUnitSymbolOff }
+    }
+
+    @Published var valueSeparator = "|" {
+        didSet { configManager.valueSeparator = valueSeparator }
+    }
+
     @Published var isWeatherConditionAsTextEnabled: Bool {
         didSet { configManager.isWeatherConditionAsTextEnabled = isWeatherConditionAsTextEnabled }
     }
-    
-    @Published var launchAtLogin = LaunchAtLogin.observable
-    
+
+    @Published var weatherConditionPosition: WeatherConditionPosition {
+        didSet { configManager.weatherConditionPosition = weatherConditionPosition.rawValue }
+    }
+
     private let configManager: ConfigManagerType
-    private weak var popoverManager: PopoverManager?
-    
-    init(configManager: ConfigManagerType, popoverManager: PopoverManager?) {
+
+    init(configManager: ConfigManagerType) {
         self.configManager = configManager
-        self.popoverManager = popoverManager
-        
-        temperateUnit = TemperatureUnit(rawValue: configManager.temperatureUnit)!
-        weatherSource = WeatherSource(rawValue: configManager.weatherSource)!
-       
+
+        measurementUnit = configManager.parsedMeasurementUnit
+        weatherSource = WeatherSource(rawValue: configManager.weatherSource) ?? .location
+
         switch configManager.refreshInterval {
         case 300: refreshInterval = .fiveMinutes
         case 900: refreshInterval = .fifteenMinutes
         case 1800: refreshInterval = .thirtyMinutes
         case 3600: refreshInterval = .sixtyMinutes
-        default: refreshInterval = .oneMinute
+        default: refreshInterval = .fifteenMinutes
         }
-        
+
         isShowingWeatherIcon = configManager.isShowingWeatherIcon
         isShowingHumidity = configManager.isShowingHumidity
+        isShowingUVIndex = configManager.isShowingUVIndex
         isRoundingOffData = configManager.isRoundingOffData
+        isUnitLetterOff = configManager.isUnitLetterOff
+        isUnitSymbolOff = configManager.isUnitSymbolOff
         isWeatherConditionAsTextEnabled = configManager.isWeatherConditionAsTextEnabled
-        
-        updateWeatherSource()
+        weatherConditionPosition = WeatherConditionPosition(rawValue: configManager.weatherConditionPosition)
+            ?? .beforeTemperature
     }
-    
-    func saveAndCloseConfig() {
-        saveConfig()
-        popoverManager?.togglePopover(nil)
-    }
-    
-    private func updateWeatherSource() {
-        weatherSourceTextHint = weatherSource.textHint
-        weatherSourceTextFieldDisabled = weatherSource == .location
-        if weatherSource == .location {
-            weatherSourceText = ""
-        }
-        weatherSourcePlaceholder = weatherSource.placeholder
-    }
-    
-    private func saveConfig() {
-        let configCommitter = ConfigurationCommitter(configManager: configManager)
-        configCommitter.setWeatherSource(weatherSource, sourceText: weatherSourceText)
-        configCommitter.setOtherOptionsForConfig(
-            refreshInterval: refreshInterval,
-            isShowingHumidity: isShowingHumidity,
-            isRoundingOffData: isRoundingOffData,
-            isWeatherConditionAsTextEnabled: isWeatherConditionAsTextEnabled
+
+    func saveConfig() {
+        configManager.updateWeatherSource(weatherSource, sourceText: weatherSourceText)
+        configManager.setConfigOptions(
+            .init(
+                refreshInterval: refreshInterval,
+                isShowingHumidity: isShowingHumidity,
+                isShowingUVIndex: isShowingUVIndex,
+                isRoundingOffData: isRoundingOffData,
+                isUnitLetterOff: isUnitLetterOff,
+                isUnitSymbolOff: isUnitSymbolOff,
+                valueSeparator: valueSeparator,
+                isWeatherConditionAsTextEnabled: isWeatherConditionAsTextEnabled
+            )
         )
     }
 }

@@ -6,99 +6,66 @@
 //  Copyright © 2022 Inder Dhir. All rights reserved.
 //
 
-final class TemperatureTextBuilder {
-    
+protocol TemperatureTextBuilderType {
+    func build() -> String?
+}
+
+final class TemperatureTextBuilder: TemperatureTextBuilderType {
     struct Options {
         let unit: TemperatureUnit
         let isRoundingOff: Bool
+        let isUnitLetterOff: Bool
+        let isUnitSymbolOff: Bool
     }
-    
-    private let initial: String?
+
     private let response: WeatherAPIResponse
     private let options: Options
+    private let temperatureCreator: TemperatureWithDegreesCreatorType
     private let degreeString = "\u{00B0}"
-    
+
     init(
-        initial: String?,
         response: WeatherAPIResponse,
-        options: Options
+        options: Options,
+        temperatureCreator: TemperatureWithDegreesCreatorType
     ) {
-        self.initial = initial
         self.response = response
         self.options = options
+        self.temperatureCreator = temperatureCreator
     }
-    
-    func build() -> String {
-        [initial, buildTemperature()]
-            .compactMap { $0 }
-            .joined(separator: ", ")
-    }
-    
-    private func buildTemperature() -> String? {
-        switch options.unit {
-        case .fahrenheit:
-            return getFahrenheitTemperatureWithDegrees()
-        case .celsius:
-            return getCelsiusTemperatureWithDegrees()
-        case .all:
-            return getTemperatureInAllUnits()
+
+    func build() -> String? {
+        if options.unit == .all {
+            buildTemperatureTextForAllUnits()
+        } else {
+            buildTemperatureText(for: options.unit)
         }
     }
-    
-    private func getFahrenheitTemperatureWithDegrees() -> String? {
-        let temperature = TemperatureConverter().convertKelvinToFahrenheit(response.temperatureData.temperature)
-        guard let temperatureString = getFormattedString(temperature: temperature) else {
-            return nil
-        }
-        
-        return combineTemperatureWithUnitDegrees(
-            temperature: temperatureString,
-            unit: TemperatureUnit.fahrenheit.unitString
+
+    private func buildTemperatureTextForAllUnits() -> String? {
+        let temperatureWithDegrees = temperatureCreator.getTemperatureWithDegrees(
+            temperatureInMultipleUnits:
+            .init(
+                fahrenheit: response.temperatureData.tempFahrenheit,
+                celsius: response.temperatureData.tempCelsius
+            ),
+            isRoundingOff: options.isRoundingOff,
+            isUnitLetterOff: options.isUnitLetterOff,
+            isUnitSymbolOff: options.isUnitSymbolOff
         )
+        return temperatureWithDegrees
     }
-    
-    private func getCelsiusTemperatureWithDegrees() -> String? {
-        let temperature = TemperatureConverter().convertKelvinToCelsius(response.temperatureData.temperature)
-        guard let temperatureString = getFormattedString(temperature: temperature) else {
-            return nil
-        }
-        
-        return combineTemperatureWithUnitDegrees(
-            temperature: temperatureString,
-            unit: TemperatureUnit.celsius.unitString
+
+    private func buildTemperatureText(for unit: TemperatureUnit) -> String? {
+        let temperatureForUnit = unit == .fahrenheit ?
+            response.temperatureData.tempFahrenheit :
+            response.temperatureData.tempCelsius
+        let temperatureWithDegrees = temperatureCreator.getTemperatureWithDegrees(
+            temperatureForUnit,
+            unit: unit,
+            isRoundingOff: options.isRoundingOff,
+            isUnitLetterOff: options.isUnitLetterOff,
+            isUnitSymbolOff: options.isUnitSymbolOff
         )
-    }
-    
-    private func getTemperatureInAllUnits() -> String? {
-        let fahrenheitTemperature = getFahrenheitTemperatureWithDegrees()
-        let celsiusTemperature = getCelsiusTemperatureWithDegrees()
-        
-        guard let fahrenheitTemperature = fahrenheitTemperature,
-              let celsiusTemperature = celsiusTemperature else {
-                  return nil
-              }
-        
-        return combineTemperatureWithBothUnitDegrees(
-            fahrenheitWithDegrees: fahrenheitTemperature,
-            celsiusWithDegrees: celsiusTemperature
-        )
-    }
-    
-    private func getFormattedString(temperature: Double) -> String? {
-        TemperatureFormatter().getFormattedTemperatureString(
-            temperature,
-            isRoundingOff: options.isRoundingOff
-        )
-    }
-    
-    private func combineTemperatureWithUnitDegrees(temperature: String, unit: String) -> String {
-        [temperature, unit].joined(separator: degreeString)
-    }
-    
-    private func combineTemperatureWithBothUnitDegrees(
-        fahrenheitWithDegrees: String,
-        celsiusWithDegrees: String
-    ) -> String {
-        [fahrenheitWithDegrees, celsiusWithDegrees].joined(separator: " / ")
+        return temperatureWithDegrees
     }
 }

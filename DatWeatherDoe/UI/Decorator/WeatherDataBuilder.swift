@@ -7,48 +7,42 @@
 //
 
 import Foundation
-import os
+import OSLog
 
 protocol WeatherDataBuilderType: AnyObject {
     func build() -> WeatherData
 }
 
 final class WeatherDataBuilder: WeatherDataBuilderType {
-    
     struct Options {
+        let unit: MeasurementUnit
         let showWeatherIcon: Bool
         let textOptions: WeatherTextBuilder.Options
     }
-    
+
     private let response: WeatherAPIResponse
     private let options: WeatherDataBuilder.Options
-    private let logger: DatWeatherDoeLoggerType
+    private let logger: Logger
 
     init(
         response: WeatherAPIResponse,
         options: WeatherDataBuilder.Options,
-        logger: DatWeatherDoeLoggerType
+        logger: Logger
     ) {
         self.response = response
         self.options = options
         self.logger = logger
     }
-    
+
     func build() -> WeatherData {
         .init(
             showWeatherIcon: options.showWeatherIcon,
-            cityId: response.cityId,
             textualRepresentation: buildTextualRepresentation(),
-            location: response.location,
-            temperatureData: response.temperatureData,
             weatherCondition: buildWeatherCondition(),
-            windData: response.windData,
-            humidity: response.humidity,
-            sunrise: response.sunrise,
-            sunset: response.sunset
+            response: response
         )
     }
-    
+
     private func buildTextualRepresentation() -> String {
         WeatherTextBuilder(
             response: response,
@@ -56,7 +50,7 @@ final class WeatherDataBuilder: WeatherDataBuilderType {
             logger: logger
         ).build()
     }
-    
+
     private func buildWeatherCondition() -> WeatherCondition {
         WeatherConditionBuilder(response: response).build()
     }

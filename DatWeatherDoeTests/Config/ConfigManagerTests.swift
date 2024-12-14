@@ -6,26 +6,25 @@
 //  Copyright © 2021 Inder Dhir. All rights reserved.
 //
 
-import XCTest
 @testable import DatWeatherDoe
+import XCTest
 
 final class ConfigManagerTests: XCTestCase {
-
     var configManager: ConfigManagerType!
 
     override func setUp() {
         super.setUp()
         clearUserDefaults()
     }
-    
-    func testDefaultTemperatureUnit() {
-        XCTAssertEqual(configManager.temperatureUnit, TemperatureUnit.fahrenheit.rawValue)
+
+    func testDefaultMeasurementUnit() {
+        XCTAssertEqual(configManager.measurementUnit, MeasurementUnit.imperial.rawValue)
     }
 
-    func testTemperatureUnitSaved() {
-        XCTAssertEqual(configManager.temperatureUnit, TemperatureUnit.fahrenheit.rawValue)
-        configManager.temperatureUnit = TemperatureUnit.celsius.rawValue
-        XCTAssertEqual(configManager.temperatureUnit, TemperatureUnit.celsius.rawValue)
+    func testMeasurementUnitSaved() {
+        XCTAssertEqual(configManager.measurementUnit, MeasurementUnit.imperial.rawValue)
+        configManager.measurementUnit = MeasurementUnit.metric.rawValue
+        XCTAssertEqual(configManager.measurementUnit, MeasurementUnit.metric.rawValue)
     }
 
     func testDefaultWeatherSource() {
@@ -44,8 +43,8 @@ final class ConfigManagerTests: XCTestCase {
 
     func testWeatherSourceTextSaved() {
         XCTAssertEqual(configManager.weatherSourceText, nil)
-        configManager.weatherSourceText = "10021,us"
-        XCTAssertEqual(configManager.weatherSourceText, "10021,us")
+        configManager.weatherSourceText = "40,40"
+        XCTAssertEqual(configManager.weatherSourceText, "40,40")
     }
 
     func testDefaultRefreshInterval() {
@@ -72,10 +71,30 @@ final class ConfigManagerTests: XCTestCase {
         XCTAssertEqual(configManager.isRoundingOffData, false)
     }
 
+    func testDefaultUnitLetterOffOffData() {
+        XCTAssertEqual(configManager.isUnitLetterOff, false)
+    }
+
+    func testDefaultisUnitSymbolOff() {
+        XCTAssertEqual(configManager.isUnitSymbolOff, false)
+    }
+
     func testRoundingOffDataSaved() {
         XCTAssertEqual(configManager.isRoundingOffData, false)
         configManager.isRoundingOffData = true
         XCTAssertEqual(configManager.isRoundingOffData, true)
+    }
+
+    func testUnitLetterOffSaved() {
+        XCTAssertEqual(configManager.isUnitLetterOff, false)
+        configManager.isUnitLetterOff = true
+        XCTAssertEqual(configManager.isUnitLetterOff, true)
+    }
+
+    func testUnitSymbolOffSaved() {
+        XCTAssertEqual(configManager.isUnitSymbolOff, false)
+        configManager.isUnitSymbolOff = true
+        XCTAssertEqual(configManager.isUnitSymbolOff, true)
     }
 
     func testWeatherConditionAsTextDefault() {

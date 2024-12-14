@@ -8,7 +8,14 @@
 
 import Foundation
 
-final class TemperatureFormatter {
+protocol TemperatureFormatterType {
+    func getFormattedTemperatureString(
+        _ temperature: Double,
+        isRoundingOff: Bool
+    ) -> String?
+}
+
+final class TemperatureFormatter: TemperatureFormatterType {
     private let formatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -16,16 +23,19 @@ final class TemperatureFormatter {
         formatter.roundingMode = .halfUp
         return formatter
     }()
-    
-    func getFormattedTemperatureString(_ temperature: Double, isRoundingOff: Bool) -> String? {
+
+    func getFormattedTemperatureString(
+        _ temperature: Double,
+        isRoundingOff: Bool
+    ) -> String? {
         setupTemperatureRounding(isRoundingOff: isRoundingOff)
         return formatTemperatureString(temperature)
     }
-    
+
     private func setupTemperatureRounding(isRoundingOff: Bool) {
         formatter.maximumFractionDigits = isRoundingOff ? 0 : 1
     }
-    
+
     private func formatTemperatureString(_ temperature: Double) -> String? {
         let formattedTemperature = formatter.string(from: NSNumber(value: temperature))
         return fixRoundingIssues(formattedTemperature)

@@ -9,94 +9,37 @@
 import SwiftUI
 
 struct ConfigureView: View {
-  
     @ObservedObject var viewModel: ConfigureViewModel
+    let version: String
+    let onSave: () -> Void
+    let onQuit: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 16) {
-                HStack {
-                    Text(LocalizedStringKey("Unit"))
-                    Spacer()
-                    Picker("", selection: $viewModel.temperateUnit) {
-                        Text(LocalizedStringKey("Fahrenheit")).tag(TemperatureUnit.fahrenheit)
-                        Text(LocalizedStringKey("Celsius")).tag(TemperatureUnit.celsius)
-                        Text(LocalizedStringKey("All")).tag(TemperatureUnit.all)
-                    }
-                    .frame(width: 120)
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Weather Source"))
-                    Spacer()
-                    Picker("", selection: $viewModel.weatherSource) {
-                        Text(LocalizedStringKey("Location")).tag(WeatherSource.location)
-                        Text(LocalizedStringKey("Lat/Long")).tag(WeatherSource.latLong)
-                        Text(LocalizedStringKey("Zip Code")).tag(WeatherSource.zipCode)
-                    }
-                    .frame(width: 120)
-                }
-                HStack {
-                    Text(viewModel.weatherSourceTextHint)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    TextField(viewModel.weatherSourcePlaceholder, text: $viewModel.weatherSourceText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .disabled(viewModel.weatherSourceTextFieldDisabled)
-                        .frame(width: 114)
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Refresh Interval"))
-                    Spacer()
-                    Picker("", selection: $viewModel.refreshInterval) {
-                        Text(LocalizedStringKey("1 min")).tag(RefreshInterval.oneMinute)
-                        Text(LocalizedStringKey("5 min")).tag(RefreshInterval.fiveMinutes)
-                        Text(LocalizedStringKey("15 min")).tag(RefreshInterval.fifteenMinutes)
-                        Text(LocalizedStringKey("30 min")).tag(RefreshInterval.thirtyMinutes)
-                        Text(LocalizedStringKey("60 min")).tag(RefreshInterval.sixtyMinutes)
-                    }
-                    .frame(width: 120)
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Show Weather Icon"))
-                    Spacer()
-                    Toggle(isOn: $viewModel.isShowingWeatherIcon) {}
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Show Humidity"))
-                    Spacer()
-                    Toggle(isOn: $viewModel.isShowingHumidity) {}
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Round-off Data"))
-                    Spacer()
-                    Toggle(isOn: $viewModel.isRoundingOffData) {}
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Weather Condition (as text)"))
-                    Spacer()
-                    Toggle(isOn: $viewModel.isWeatherConditionAsTextEnabled) {}
-                }
-                
-                HStack {
-                    Text(LocalizedStringKey("Launch at Login"))
-                    Spacer()
-                    Toggle(isOn: $viewModel.launchAtLogin.isEnabled) {}
-                }
+        VStack {
+            ConfigureOptionsView(viewModel: viewModel)
+
+            HStack {
+                Text(version)
+                    .font(.footnote)
+                    .fontWeight(.thin)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                CustomButton(
+                    text: LocalizedStringKey("Done"),
+                    shortcutKey: "d",
+                    onClick: onSave
+                )
+                .frame(maxWidth: .infinity, alignment: .center)
+
+                Text(LocalizedStringKey("Quit"))
+                    .foregroundStyle(Color.red)
+                    .onTapGesture(perform: onQuit)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            
-            Button(LocalizedStringKey("Done")) {
-                viewModel.saveAndCloseConfig()
-            }
+            .frame(maxWidth: .infinity)
+            .padding([.leading, .trailing])
         }
-        .padding()
+        .padding(.bottom)
         .frame(width: 380)
     }
 }
@@ -104,10 +47,10 @@ struct ConfigureView: View {
 struct ConfigureView_Previews: PreviewProvider {
     static var previews: some View {
         ConfigureView(
-            viewModel: .init(
-                configManager: ConfigManager(),
-                popoverManager: nil
-            )
+            viewModel: .init(configManager: ConfigManager()),
+            version: "5.0.0",
+            onSave: {},
+            onQuit: {}
         )
     }
 }

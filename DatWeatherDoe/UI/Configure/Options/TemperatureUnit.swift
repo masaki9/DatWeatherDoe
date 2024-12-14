@@ -2,15 +2,17 @@
 //  TemperatureUnit.swift
 //  DatWeatherDoe
 //
-//  Created by Inder Dhir on 5/22/21.
-//  Copyright © 2021 Inder Dhir. All rights reserved.
+//  Created by Inder Dhir on 8/8/23.
+//  Copyright © 2023 Inder Dhir. All rights reserved.
 //
+
+import Foundation
 
 enum TemperatureUnit: String, CaseIterable, Identifiable {
     case fahrenheit, celsius, all
-    
+
     var id: Self { self }
-    
+
     var unitString: String {
         switch self {
         case .fahrenheit:
@@ -21,7 +23,7 @@ enum TemperatureUnit: String, CaseIterable, Identifiable {
             return "All"
         }
     }
-    
+
     var degreesString: String {
         "\u{00B0}\(unitString)"
     }

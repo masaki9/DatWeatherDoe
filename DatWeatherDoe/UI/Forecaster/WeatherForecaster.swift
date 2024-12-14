@@ -9,17 +9,14 @@
 import Cocoa
 import Foundation
 
-final class WeatherForecaster {
-    
-    private let fullWeatherUrl = URL(string: "https://openweathermap.org/city")!
-    private var cityId = 0
+protocol WeatherForecasterType {
+    func seeForecastForCity()
+}
 
-    func updateCityWith(cityId: Int) {
-        self.cityId = cityId
-    }
-    
+final class WeatherForecaster: WeatherForecasterType {
+    private let fullWeatherUrl = URL(string: "https://www.weatherapi.com/weather/")!
+
     func seeForecastForCity() {
-        let cityWeatherUrl = fullWeatherUrl.appendingPathComponent(String(cityId))
-        NSWorkspace.shared.open(cityWeatherUrl)
+        NSWorkspace.shared.open(fullWeatherUrl)
     }
 }

@@ -1,5 +1,5 @@
 //
-//  WeatherResponse.swift
+//  WeatherAPIResponse.swift
 //  DatWeatherDoe
 //
 //  Created by Inder Dhir on 2/3/18.
@@ -9,74 +9,113 @@
 import Foundation
 
 struct WeatherAPIResponse: Decodable {
-    let cityId: Int
+    let locationName: String
     let temperatureData: TemperatureData
+    let isDay: Bool
+    let weatherConditionCode: Int
     let humidity: Int
-    let location: String
-    let weatherId: Int
-    let sunrise: TimeInterval
-    let sunset: TimeInterval
     let windData: WindData
-    
-    struct TemperatureData: Decodable {
-        let temperature: Double
-        let feelsLikeTemperature: Double
-        let minTemperature: Double
-        let maxTemperature: Double
-        
-        private enum CodingKeys: String, CodingKey {
-            case temperature = "temp"
-            case feelsLikeTemperature = "feels_like"
-            case minTemperature = "temp_min"
-            case maxTemperature = "temp_max"
-        }
-    }
-    
-    struct WindData: Decodable {
-        let speed: Double
-        let degrees: Int
-        
-        private enum CodingKeys: String, CodingKey {
-            case speed
-            case degrees = "deg"
-        }
-    }
-    
+    let uvIndex: Double
+    let forecastDayData: ForecastDayData
+    let airQualityIndex: AirQualityIndex
+
     private enum RootKeys: String, CodingKey {
-        case cityId = "id"
-        case main, weather, humidity, name, sys, wind
+        case location, current, forecast
     }
-    
-    private enum APIKeys: String, CodingKey {
-        case temperature = "temp"
-        case humidity
-        case sunrise, sunset
+
+    private enum LocationKeys: String, CodingKey {
+        case name
     }
-    
-    private enum WeatherKeys: String, CodingKey {
-        case id
+
+    private enum CurrentKeys: String, CodingKey {
+        case isDay = "is_day"
+        case condition, humidity
+        case airQuality = "air_quality"
+        case uvIndex = "uv"
+    }
+
+    private enum WeatherConditionKeys: String, CodingKey {
+        case code
+    }
+
+    private enum ForecastKeys: String, CodingKey {
+        case forecastDay = "forecastday"
+    }
+
+    private enum ForecastDayKeys: String, CodingKey {
+        case day, astro
+    }
+
+    private enum AirQualityKeys: String, CodingKey {
+        case usEpaIndex = "us-epa-index"
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: RootKeys.self)
-        
-        cityId = try container.decode(Int.self, forKey: .cityId)
-        temperatureData = try container.decode(TemperatureData.self, forKey: .main)
 
-        let mainContainer = try container.nestedContainer(keyedBy: APIKeys.self, forKey: .main)
-        
-        humidity = try mainContainer.decode(Int.self, forKey: .humidity)
+        let locationContainer = try container.nestedContainer(keyedBy: LocationKeys.self, forKey: .location)
+        locationName = try locationContainer.decode(String.self, forKey: .name)
+        temperatureData = try container.decode(TemperatureData.self, forKey: .current)
 
-        location = try container.decode(String.self, forKey: .name)
+        let currentContainer = try container.nestedContainer(keyedBy: CurrentKeys.self, forKey: .current)
+        let isDayInt = try currentContainer.decode(Int.self, forKey: .isDay)
+        isDay = isDayInt > 0
 
-        var weatherContainer = try container.nestedUnkeyedContainer(forKey: .weather)
-        let weatherChildContainer = try weatherContainer.nestedContainer(keyedBy: WeatherKeys.self)
-        weatherId = try weatherChildContainer.decode(Int.self, forKey: .id)
+        let weatherConditionContainer = try currentContainer.nestedContainer(
+            keyedBy: WeatherConditionKeys.self,
+            forKey: .condition
+        )
+        weatherConditionCode = try weatherConditionContainer.decode(Int.self, forKey: .code)
 
-        let sysContainer = try container.nestedContainer(keyedBy: APIKeys.self, forKey: .sys)
-        sunrise = try sysContainer.decode(TimeInterval.self, forKey: .sunrise)
-        sunset = try sysContainer.decode(TimeInterval.self, forKey: .sunset)
-        
-        windData = try container.decode(WindData.self, forKey: .wind)
+        humidity = try currentContainer.decode(Int.self, forKey: .humidity)
+
+        windData = try container.decode(WindData.self, forKey: .current)
+
+        uvIndex = try currentContainer.decode(Double.self, forKey: .uvIndex)
+
+        let forecast = try container.decode(Forecast.self, forKey: .forecast)
+        if let dayData = forecast.dayDataArr.first {
+            forecastDayData = dayData
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .forecast,
+                in: container,
+                debugDescription: "Missing forecast day data"
+            )
+        }
+
+        let airQualityContainer = try currentContainer.nestedContainer(keyedBy: AirQualityKeys.self, forKey: .airQuality)
+        airQualityIndex = try airQualityContainer.decode(AirQualityIndex.self, forKey: .usEpaIndex)
     }
+
+    init(
+        locationName: String,
+        temperatureData: TemperatureData,
+        isDay: Bool,
+        weatherConditionCode: Int,
+        humidity: Int,
+        windData: WindData,
+        uvIndex: Double,
+        forecastDayData: ForecastDayData,
+        airQualityIndex: AirQualityIndex
+    ) {
+        self.locationName = locationName
+        self.temperatureData = temperatureData
+        self.isDay = isDay
+        self.weatherConditionCode = weatherConditionCode
+        self.humidity = humidity
+        self.windData = windData
+        self.uvIndex = uvIndex
+        self.forecastDayData = forecastDayData
+        self.airQualityIndex = airQualityIndex
+    }
+
+    // hour = [0-23]
+    func getHourlyUVIndex(hour: Int) -> Double {
+        forecastDayData.hour[safe: hour]?.uv ?? uvIndex
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? { indices ~= index ? self[index] : nil }
 }
